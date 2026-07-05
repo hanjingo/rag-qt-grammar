@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QString>
 #include <QVector>
+#include <QAudioFormat>
 
 #define BUS_VERSION_MAJOR 0
 #define BUS_VERSION_MINOR 0
@@ -29,28 +30,26 @@ class Bus : public QObject
         QString content;
         qint64  prevMessageId;
         QString timestamp;
+        bool    isFinished;
     };
 
-    struct ModelConfig
+    struct ModelInfo
     {
         // base info
-        QString hash;
+        QString id;
         QString name;
         QString publisher;
         QString timestamp;
         QString addr;
-        QString capabilities;
-        qint64  contextSize;
+        QString pipeline;
         qint32  cost;
-        QString apiKey;
+        QString hash;
 
-        // parameters
-        float   temperature;
-        float   topP;
-        float   topK;
-        float   reputationPenalty;
-        qint64  maxTokens;
+        // context parameters
+        int     ctxWindowSize;
         QString stopWords;
+
+        // prompt
         QString prompt;
     };
 
@@ -65,6 +64,14 @@ class Bus : public QObject
         qint32  platform;
     };
 
+    struct AudioParam
+    {
+        QString translatorId;
+        int     minNewSampleSize;
+        int     minAudioBufferSize;
+        int     maxAudioBufferSize;
+    };
+
   public:
     static Bus *Instance();
     static void Version(int8_t &major, int8_t &minor, int8_t &patch);
@@ -75,7 +82,9 @@ class Bus : public QObject
 
     void SignalLanguageSwitch(const QString &lang);
 
-    void SignalModelInfoUpdateNtf(const QVector<Bus::ModelConfig> &modelInfos);
+    void SignalModelInfoUpdateNtf(const QVector<Bus::ModelInfo> &modelInfos);
+
+    void SignalAudioParamUpdateNtf(const QVector<Bus::AudioParam> &params);
 
     void SignalNewSession(const QString &title,
                           const QString &content,
@@ -89,19 +98,43 @@ class Bus : public QObject
 
     void SignalDelSessionResp(const int errorCode, const QVector<int64_t> &ids);
 
-    void SignalQuery(const int64_t  sessionId,
-                     const QString &query,
-                     const QString &model);
+    void SignalQuery(const int64_t         sessionId,
+                     const QString        &query,
+                     const QString        &model,
+                     const Bus::ModelInfo &infos);
     void SignalQueryResp(const int      errorCode,
                          const int64_t  sessionId,
                          const QString &content,
                          const bool     isFinished);
+
+    void SignalStopAnswer(const int64_t sessionId);
+    void SignalStopAnswerResp(const int64_t errorCode, const int64_t sessionId);
 
     void SignalGetMessageInfo(const int64_t msgId,
                               const int64_t sessionId,
                               int           limit);
     void SignalGetMessageInfoResp(const int                        errorCode,
                                   const QVector<Bus::MessageInfo> &messages);
+
+    void SignalAudioCaptureStart(const QAudioFormat &format,
+                                 const QByteArray   &devId);
+    void SignalAudioCaptureStarted(const qint64 id, const QByteArray &devId);
+
+    void SignalAudioCaptured(const qint64 id, const QByteArray &data);
+
+    void SignalAudioCaptureStop(const qint64 id);
+    void SignalAudioCaptureStopped(const qint64 id);
+
+    void SignalRecognize(const qint64      sessionId,
+                         const QByteArray &src,
+                         const QString    &translatorId);
+    void SignalRecognizeResp(const int      errorCode,
+                             const QString &transcript,
+                             const bool     isFinished,
+                             const double   confidence);
+
+    void SignalStopRecognize(const qint64 sessionId);
+    void SignalStopRecognizeResp(const int errorCode, const qint64 sessionId);
 
   private:
     explicit Bus(QObject *parent = nullptr)
